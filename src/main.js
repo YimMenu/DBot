@@ -1,6 +1,47 @@
 import { Client, Events, GatewayIntentBits } from "discord.js";
 import { setPresence } from "./setPresence.js";
 
+const regex = {
+    issue: /(?<repo>[a-zA-Z0-9_\-\/]+)?#(?<id>[1-9]\d*\b)(?<inline>!?)/gmi,
+    repo: /repo=\[([a-zA-Z0-9\-_\/]+)\]/i,
+    commit: /((?<repo>[a-zA-Z0-9_\-\/]+)#)?commit=\[(?<id>[a-zA-Z0-9\.~_\-/]+)\]!?/gi
+}
+
+/**
+ * @param {string?} repo 
+ * @returns {{owner: string, repo: string}}
+ */
+const parse_repo = (repo) => {
+    if (!repo) {
+        return {
+            owner: "YimMenu",
+            repo: "YimMenu"
+        }
+    }
+    if (!repo.includes("/")) {
+        return {
+            owner: "YimMenu",
+            repo
+        }
+    }
+    const [owner, repo_name] = repo.split("/", 2);
+    return {
+        owner,
+        repo: repo_name
+    }
+}
+
+/**
+ * @param {{url: string, inline: boolean}} obj 
+ * @returns {{thread: string, inline: string}}
+ */
+const thread_inline = (obj) => {
+    return {
+        thread: obj.filter(x => !x.inline).map(x => x.url),
+        inline: obj.filter(x => x.inline).map(x => x.url)
+    }
+}
+
 export const main = () => {
     const client = new Client({
         intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
@@ -19,24 +60,25 @@ export const main = () => {
             return;
 
         // repo=[YimMenu]
-        let repo = message.content.match(/repo=\[([a-zA-Z0-9-_]+)\]/)?.[1]
-        if (!repo) repo = "YimMenu";
+        const repo = parse_repo(message.content.match(regex.repo)?.[1])
 
         // commit[HEAD]
-        const commits = [...message.content.matchAll(/commit=\[([a-zA-Z0-9\.~_-/]+)\]!?/g)].map(x => {
-            return { hash: x[1], inline: x[0].endsWith("!") }
+        const commits = [...message.content.matchAll(regex.commit)].map(x => {
+            return { hash: x.groups.id, inline: !!x.groups.inline, repo: x.groups.repo }
         })
 
         /**
          * There can only be one thread per message.
-         * @type string?
+         * @type {AnyThreadChannel<boolean>}
          */
         let active_thread;
         if (commits.length) {
+            /** @type {{url: string, inline: boolean}} */
             const commit_links = []
 
             for (const commit of commits) {
-                const response = await fetch(`https://api.github.com/repos/YimMenu/${repo}/${commit.hash.includes(".") ? "compare" : "commits"}/${commit.hash}`);
+                const commit_repo = commit.repo ? parse_repo(commit.repo) : repo;
+                const response = await fetch(`https://api.github.com/repos/${commit_repo.owner}/${commit_repo.repo}/${commit.hash.includes(".") ? "compare" : "commits"}/${commit.hash}`);
                 if (!response.ok)
                     continue;
 
@@ -48,31 +90,33 @@ export const main = () => {
             }
 
             if (commit_links.length) {
-                const inline_commits = commit_links.filter(x => x.inline).map(x => x.url)
-                const thread_commits = commit_links.filter(x => !x.inline).map(x => x.url)
+                const commits_thread_inline = thread_inline(commit_links)
 
-                if (inline_commits.length) {
-                    message.reply(`Linked Commits\n- ${inline_commits.join('\n- ')}`)
+                if (commits_thread_inline.inline.length) {
+                    message.reply(`Linked Commits\n- ${commits_thread_inline.inline.join('\n- ')}`)
                 }
 
-                if (thread_commits.length) {
+                if (commits_thread_inline.thread.length) {
                     active_thread = await message.startThread({
                         name: 'Linked Commits'
                     });
-                    active_thread.send({ content: `- ${thread_commits.join('\n- ')}` });
+                    active_thread.send({ content: `- ${commits_thread_inline.thread.join('\n- ')}` });
                 }
             }
         }
 
-        const gitTags = message.content.match(/#[1-9]\d*\b!?/gm)?.map(tag => {
-            return { id: parseInt(tag.substring(1)), inline: tag.endsWith("!") }
+        const gitTags = [...message.content.matchAll(regex.issue)]?.map(tag => {
+            return { id: parseInt(tag.groups.id), inline: !!tag.groups.inline, repo: tag.groups.repo }
         }).filter(x => x.id !== NaN);
         if (!gitTags || gitTags.length === 0)
             return;
 
+        /** @type {{url: string, inline: boolean}} */
         const issues = [];
         for (const tag of gitTags) {
-            const response = await fetch(`https://api.github.com/repos/YimMenu/${repo}/issues/${tag.id}`);
+            const tag_repo = tag.repo ? parse_repo(tag.repo) : repo;
+
+            const response = await fetch(`https://api.github.com/repos/${tag_repo.owner}/${tag_repo.repo}/issues/${tag.id}`);
             if (!response.ok)
                 continue;
 
@@ -84,20 +128,19 @@ export const main = () => {
         }
 
         if (issues.length) {
-            const inline_issues = issues.filter(x => x.inline).map(x => x.url)
-            const thread_issues = issues.filter(x => !x.inline).map(x => x.url)
+            const issues_thread_inline = thread_inline(issues)
 
-            if (inline_issues.length) {
-                message.reply(`Linked PR/Issues/Discussions\n- ${inline_issues.join('\n- ')}`)
+            if (issues_thread_inline.inline.length) {
+                message.reply(`Linked PR/Issues/Discussions\n- ${issues_thread_inline.inline.join('\n- ')}`)
             }
 
-            if (thread_issues.length) {
+            if (issues_thread_inline.thread.length) {
                 if (!active_thread) {
                     active_thread = await message.startThread({
                         name: 'Linked PR/Issues/Discussions'
                     });
                 }
-                active_thread.send({ content: `- ${thread_issues.join('\n- ')}` });
+                active_thread.send({ content: `- ${issues_thread_inline.thread.join('\n- ')}` });
             }
         }
     });
