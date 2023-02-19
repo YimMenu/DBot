@@ -1,0 +1,8 @@
+.devcontainer/
+node_modules/
+.dockerignore
+.env
+.gitignore
+docker-compose.yml
+Dockerfile
+example.env

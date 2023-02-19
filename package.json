@@ -1,0 +1,16 @@
+{
+  "name": "yimmenu-bot",
+  "version": "0.0.1",
+  "description": "A bot to track several different YimMenu related things.",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "node ."
+  },
+  "author": "yimura",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.7.1",
+    "dotenv": "^16.0.3"
+  }
+}
