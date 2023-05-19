@@ -4,7 +4,7 @@ import { setPresence } from "./setPresence.js";
 const regex = {
     issue: /(?<repo>[a-zA-Z0-9_\-\/]+)?#(?<id>[1-9]\d*\b)(?<inline>!?)/gmi,
     repo: /repo=\[([a-zA-Z0-9\-_\/]+)\]/i,
-    commit: /((?<repo>[a-zA-Z0-9_\-\/]+)#)?commit=\[(?<id>[a-zA-Z0-9\.~_\-/]+)\]!?/gi
+    commit: /((?<repo>[a-zA-Z0-9_\-\/]+)#)?commit=\[(?<id>[a-zA-Z0-9\.~_\-/]+)\](?<inline>!?)/gi
 }
 
 /**
