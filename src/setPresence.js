@@ -11,10 +11,10 @@ export const setPresence = async (client) => {
          * @type {Array<Object>}
          */
         const body = await response.json();
-        if (body.length)
+        const nightly = body.find(release => release.tag_name === 'nightly' && release.assets[0]?.name === 'YimMenu.dll');
+        if (nightly)
         {
-            const release = body.filter(val => val.assets[0].name === "YimMenu.dll")[0];
-            const downloads = release.assets[0].download_count;
+            const downloads = nightly.assets[0].download_count;
     
             client.user.setPresence({
                 activities: [
